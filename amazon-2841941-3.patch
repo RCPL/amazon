@@ -1,0 +1,193 @@
+diff --git a/composer.json b/composer.json
+index a8590ef..32303f3 100644
+--- a/composer.json
++++ b/composer.json
+@@ -5,6 +5,6 @@
+   "homepage": "https://www.drupal.org/project/amazon",
+   "license": "GPL-2.0+",
+   "require": {
+-    "exeu/apai-io": "~1.0"
++    "exeu/apai-io": "~2.0"
+   }
+ }
+diff --git a/src/Amazon.php b/src/Amazon.php
+index ecfe5c5..957b978 100644
+--- a/src/Amazon.php
++++ b/src/Amazon.php
+@@ -10,6 +10,8 @@ use Drupal\amazon\AmazonRequest;
+ use ApaiIO\ApaiIO;
+ use ApaiIO\Configuration\GenericConfiguration;
+ use ApaiIO\Operations\Lookup;
++use ApaiIO\Operations\BrowseNodeLookup;
++use GuzzleHttp\Exception;
+ 
+ /**
+  * Provides methods that interfaces with the Amazon Product Advertising API.
+@@ -46,7 +48,7 @@ class Amazon {
+    *   (optional) Which locale to run queries against. Valid values include: de,
+    *   com, co.uk, ca, fr, co.jp, it, cn, es, in.
+    */
+-  public function __construct($associatesId, $accessKey = '', $accessSecret = '', $locale = 'com') {
++  public function __construct($associatesId, $locale = 'com', $accessKey = '', $accessSecret = '') {
+     if (empty($accessKey)) {
+       $accessKey = self::getAccessKey();
+       if (!$accessKey) {
+@@ -59,14 +61,23 @@ class Amazon {
+         throw new \InvalidArgumentException('Configuration missing: Amazon access secret.');
+       }
+     }
+-
++    
++    $client = new \GuzzleHttp\Client();
++    $request = new \ApaiIO\Request\GuzzleRequest($client);
++    
+     $conf = new GenericConfiguration();
+-    $conf
+-      ->setCountry($locale)
+-      ->setAccessKey($accessKey)
+-      ->setSecretKey($accessSecret)
+-      ->setAssociateTag($associatesId)
+-      ->setResponseTransformer('\Drupal\amazon\LookupXmlToItemsArray');
++    try {
++      $conf
++        ->setCountry($locale)
++        ->setAccessKey($accessKey)
++        ->setSecretKey($accessSecret)
++        ->setAssociateTag($associatesId)
++        ->setRequest($request)
++        ->setResponseTransformer(new \ApaiIO\ResponseTransformer\XmlToSimpleXmlObject());
++    }
++    catch (Exception $e) {
++      drupal_set_message($e->getMessage(), 'error');
++    }
+     $this->apaiIO = new ApaiIO($conf);
+   }
+ 
+@@ -85,7 +96,7 @@ class Amazon {
+ 
+     // If not, use Drupal config variables. (Automatically handles overrides
+     // in settings.php.)
+-    $secret = \Drupal::config('amazon.configuration')->get('access_secret');
++    $secret = \Drupal::config('amazon.settings')->get('access_secret');
+     if ($secret) {
+       return $secret;
+     }
+@@ -108,7 +119,7 @@ class Amazon {
+ 
+     // If not, use Drupal config variables. (Automatically handles overrides
+     // in settings.php.)
+-    $key = \Drupal::config('amazon.configuration')->get('access_key');
++    $key = \Drupal::config('amazon.settings')->get('access_key');
+     if ($key) {
+       return $key;
+     }
+@@ -144,5 +155,24 @@ class Amazon {
+     }
+     return $results;
+   }
++  
++  public function browseNodeLookup($browseNodeId) {
++    if (empty($browseNodeId)) {
++      throw new \InvalidArgumentException('Calling lookup without browse node ID to lookup!');
++    }
++    
++    $browseNodeLookup = new BrowseNodeLookup();
++    $browseNodeLookup->setNodeId($browseNodeId);
++    $browseNodeLookup->setResponseGroup(array('BrowseNodeInfo', 'TopSellers'));
++    
++    try {
++      $result = $this->apaiIO->runOperation($browseNodeLookup);
++    }
++    catch (\Exception $e) {
++      $result = NULL;
++      drupal_set_message($e->getMessage(), 'error');
++    }
+ 
++    return $result;
++  }
+ }
+diff --git a/src/Form/SettingsForm.php b/src/Form/SettingsForm.php
+index a026de1..61222d3 100644
+--- a/src/Form/SettingsForm.php
++++ b/src/Form/SettingsForm.php
+@@ -31,7 +31,7 @@ class SettingsForm extends ConfigFormBase {
+    * {@inheritdoc}
+    */
+   public function getFormId() {
+-    return 'settings_form';
++    return 'amazon_settings_form';
+   }
+ 
+   /**
+@@ -71,13 +71,14 @@ class SettingsForm extends ConfigFormBase {
+       '#disabled' => !empty($accessSecret),
+     ];
+ 
+-    $form['associates_id'] = [
++/*    $form['associates_id'] = [
+       '#type' => 'textfield',
+       '#title' => $this->t('Amazon Associates ID'),
+       '#description' => $this->t('You must register as an <a href=":url">Associate with Amazon</a> before using this module.', [':url' => 'http://docs.aws.amazon.com/AWSECommerceService/latest/DG/becomingAssociate.html']),
+       '#default_value' => $config->get('associates_id'),
+     ];
+-
++*/
++    
+     $max_age = $config->get('default_max_age');
+     if ($max_age == '') {
+       // Defaults to 15 minutes.
+@@ -89,6 +90,32 @@ class SettingsForm extends ConfigFormBase {
+       '#description' => $this->t('Number of seconds that the result from Amazon will be cached. This can be overridden by defining a different value in the text filter. Set to zero to disable caching by default.'),
+       '#default_value' => $max_age,
+     ];
++    
++    $associates_ids = $config->get('associates_ids');
++    
++    $ids = array(
++        array('row' => 'usa', 'country' => 'USA', 'associates_id' => array ('data' => array('#type' => 'textfield', '#name' => 'usa_tag', '#value' => isset($associates_ids['usa']) ? $associates_ids['usa']['tag'] : '', '#size' => 60,'#maxlength' => 128,))),
++        array('row' => 'japan', 'country' => 'Japan', 'associates_id' => array ('data' => array('#type' => 'textfield', '#name' => 'japan_tag', '#value' => isset($associates_ids['japan']) ? $associates_ids['japan']['tag'] : '', '#size' => 60,'#maxlength' => 128,))),
++        array('row' => 'china', 'country' => 'China', 'associates_id' => array ('data' => array('#type' => 'textfield', '#name' => 'china_tag', '#value' => isset($associates_ids['china']) ? $associates_ids['china']['tag'] : '', '#size' => 60,'#maxlength' => 128,))),
++    );
++    
++    $options = array();
++    foreach ($ids as $id) {
++      $options[$id['row']] = array(
++          'country' => $id['country'],
++          'id' => $id['associates_id'],
++      );
++    }
++    
++    $form['associates_ids'] = array(
++        '#type' => 'tableselect',
++        '#caption' => $this->t('Associates IDs'),
++        '#header' => array('country' => $this->t('Country'), 'id' => $this->t('Associates Tag')),
++        '#options' => $options,
++        '#multiple' => FALSE,
++        '#default_value' => $config->get('default_country'),
++    );
++    
+ 
+     return parent::buildForm($form, $form_state);
+   }
+@@ -108,11 +135,19 @@ class SettingsForm extends ConfigFormBase {
+    */
+   public function submitForm(array &$form, FormStateInterface $form_state) {
+     parent::submitForm($form, $form_state);
+-
++    $inputs = $form_state->getUserInput();
++    
++    $associates_ids = array(
++        'usa' => array('tag' => $inputs['usa_tag'], 'location' => 'com'),
++        'japan' => array('tag' => $inputs['japan_tag'], 'location' => 'co.jp'),
++        'china' => array('tag' => $inputs['china_tag'], 'location' => 'cn'),
++    );
++    
+     $this->config('amazon.settings')
+       ->set('access_key', $form_state->getValue('access_key'))
+       ->set('access_secret', $form_state->getValue('access_secret'))
+-      ->set('associates_id', $form_state->getValue('associates_id'))
++      ->set('associates_ids', $associates_ids)
++      ->set('default_country', $inputs['associates_ids'])
+       ->set('default_max_age', $form_state->getValue('default_max_age'))
+       ->save();
+   }

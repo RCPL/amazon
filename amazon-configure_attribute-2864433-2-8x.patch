@@ -1,0 +1,10 @@
+diff --git a/amazon.info.yml b/amazon.info.yml
+index 63dd22a..22aa2bf 100644
+--- a/amazon.info.yml
++++ b/amazon.info.yml
+@@ -2,4 +2,5 @@ name: Amazon Product Advertising API
+ type: module
+ description: API module required by many Amazon Associates modules.
+ core: 8.x
++configure: amazon.settings_form
+ package: Amazon

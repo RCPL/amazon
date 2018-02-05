@@ -1,0 +1,74 @@
+<?php
+
+/**
+ * @file
+ * Install, update and uninstall functions for the amazon module.
+ */
+
+/**
+ * Implements hook_schema().
+ *
+ * Defines the database tables used by this module.
+ *
+ * @see hook_schema()
+ *
+ * @ingroup amazon
+ */
+function amazon_schema() {
+
+  $schema['amazon_item'] = array(
+    'fields' => array(
+      'asin' => array('type' => 'varchar', 'length' => 64, 'not null' => TRUE),
+      'title' => array('type' => 'varchar', 'length' => 255, 'not null' => TRUE),
+      'detailpageurl' => array('type' => 'text'),
+      'salesrank' => array('type' => 'int', 'unsigned' => TRUE),
+      'brand' => array('type' => 'varchar', 'length' => 64),
+      'publisher' => array('type' => 'varchar', 'length' => 64),
+      'manufacturer' => array('type' => 'varchar', 'length' => 64),
+      'mpn' => array('type' => 'varchar', 'length' => 255),
+      'studio' => array('type' => 'varchar', 'length' => 64),
+      'label' => array('type' => 'varchar', 'length' => 64),
+      'binding' => array('type' => 'varchar', 'length' => 64),
+      'releasedate' => array('type' => 'varchar', 'length' => 64),
+      'listpriceamount' => array('type' => 'numeric', 'not null' => FALSE, 'precision' => '10', 'scale' => '0'),
+      'listpricecurrencycode' => array('type' => 'varchar', 'length' => 32),
+      'listpriceformattedprice' => array('type' => 'varchar', 'length' => 32),
+      'lowestpriceamount' => array('type' => 'numeric', 'not null' => FALSE, 'precision' => '10', 'scale' => '0'),
+      'lowestpricecurrencycode' => array('type' => 'varchar', 'length' => 32),
+      'lowestpriceformattedprice' => array('type' => 'varchar', 'length' => 32),
+      'amazonpriceamount' => array('type' => 'numeric', 'not null' => FALSE, 'precision' => '10', 'scale' => '0'),
+      'amazonpricecurrencycode' => array('type' => 'varchar', 'length' => 32),
+      'amazonpriceformattedprice' => array('type' => 'varchar', 'length' => 32),
+      'productgroup' => array('type' => 'varchar', 'length' => 255),
+      'producttypename' => array('type' => 'varchar', 'length' => 255),
+      'customerreviews_iframe' => array('type' => 'varchar', 'length' => 255),
+      'invalid_asin' => array('type' => 'int', 'default' => 0),
+      'timestamp' => array('type' => 'int', 'unsigned' => TRUE, 'not null' => TRUE, 'default' => 0),
+    ),
+    'primary key' => array('asin'),
+  );
+
+  $schema['amazon_item_image'] = array(
+    'fields' => array(
+      'asin' => array('type' => 'varchar', 'length' => 64, 'not null' => TRUE),
+      'size' => array('type' => 'varchar', 'length' => 64, 'not null' => TRUE),
+      'url' => array('type' => 'varchar', 'length' => 128, 'not null' => TRUE),
+      'height' => array('type' => 'int', 'unsigned' => TRUE, 'not null' => TRUE),
+      'width' => array('type' => 'int', 'unsigned' => TRUE, 'not null' => TRUE),
+    ),
+    'primary key' => array('asin', 'size'),
+    'indexes' => array(
+      'asin' => array('asin'),
+    ),
+  );
+
+  $schema['amazon_upc'] = array(
+    'fields' => array(
+      'asin' => array('type' => 'varchar', 'length' => '64', 'not null' => TRUE),
+      'upc' => array('type' => 'varchar', 'length' => '64', 'not null' => TRUE),
+    ),
+    'primary key' => array('asin'),
+  );
+
+  return $schema;
+}
